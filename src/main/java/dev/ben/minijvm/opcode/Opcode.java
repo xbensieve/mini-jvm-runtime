@@ -5,7 +5,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Enumeration of JVM opcodes supported in Phase 03.
+ * Enumeration of JVM opcodes supported in Phase 03 and Phase 04
+ * (43 concrete opcode values: 27 in Phase 03, 16 in Phase 04).
  */
 public enum Opcode {
     NOP(0x00, "nop", 1),
@@ -34,7 +35,23 @@ public enum Opcode {
     IMUL(0x68, "imul", 1),
     IDIV(0x6C, "idiv", 1),
     IREM(0x70, "irem", 1),
-    INEG(0x74, "ineg", 1);
+    INEG(0x74, "ineg", 1),
+    IINC(0x84, "iinc", 3),
+    IFEQ(0x99, "ifeq", 3),
+    IFNE(0x9A, "ifne", 3),
+    IFLT(0x9B, "iflt", 3),
+    IFGE(0x9C, "ifge", 3),
+    IFGT(0x9D, "ifgt", 3),
+    IFLE(0x9E, "ifle", 3),
+    IF_ICMPEQ(0x9F, "if_icmpeq", 3),
+    IF_ICMPNE(0xA0, "if_icmpne", 3),
+    IF_ICMPLT(0xA1, "if_icmplt", 3),
+    IF_ICMPGE(0xA2, "if_icmpge", 3),
+    IF_ICMPGT(0xA3, "if_icmpgt", 3),
+    IF_ICMPLE(0xA4, "if_icmple", 3),
+    GOTO(0xA7, "goto", 3),
+    IRETURN(0xAC, "ireturn", 1),
+    RETURN(0xB1, "return", 1);
 
     private final int code;
     private final String mnemonic;
@@ -68,5 +85,26 @@ public enum Opcode {
 
     public static Optional<Opcode> findByCode(int byteCode) {
         return Optional.ofNullable(BY_CODE.get(byteCode & 0xFF));
+    }
+
+    public boolean isBranch() {
+        return switch (this) {
+            case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
+                 IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE,
+                 GOTO -> true;
+            default -> false;
+        };
+    }
+
+    public boolean isConditionalBranch() {
+        return switch (this) {
+            case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
+                 IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE -> true;
+            default -> false;
+        };
+    }
+
+    public boolean isReturn() {
+        return this == RETURN || this == IRETURN;
     }
 }

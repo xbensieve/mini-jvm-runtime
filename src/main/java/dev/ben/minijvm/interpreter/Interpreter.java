@@ -5,6 +5,7 @@ import dev.ben.minijvm.exception.ArithmeticFaultException;
 import dev.ben.minijvm.exception.StackFaultException;
 import dev.ben.minijvm.opcode.Instruction;
 import dev.ben.minijvm.runtime.Frame;
+import dev.ben.minijvm.runtime.FrameStack;
 import dev.ben.minijvm.runtime.Value;
 
 import java.util.Objects;
@@ -12,7 +13,7 @@ import java.util.Objects;
 /**
  * Execution engine for JVM bytecode.
  * Coordinates instruction fetch, decoder invocation, deterministic PC advancement,
- * and opcode dispatch onto frame state.
+ * branch target calculation, return handling, and opcode dispatch onto frame state.
  */
 public final class Interpreter {
 
@@ -38,7 +39,22 @@ public final class Interpreter {
      * @return The decoded instruction that was executed.
      */
     public Instruction step(Frame frame) {
+        return step(frame, null);
+    }
+
+    /**
+     * Executes a single instruction at the frame's current PC within an optional FrameStack context.
+     *
+     * @param frame      The active execution frame.
+     * @param frameStack The active call stack, or null if executing a standalone frame.
+     * @return The decoded instruction that was executed.
+     */
+    public Instruction step(Frame frame, FrameStack frameStack) {
         Objects.requireNonNull(frame, "frame cannot be null");
+
+        if (frame.isCompleted()) {
+            throw new StackFaultException("Cannot step frame: frame has already completed execution");
+        }
 
         CodeAttribute codeAttr = frame.method().code().orElseThrow(() ->
                 new StackFaultException("Cannot execute frame for method without Code attribute")
@@ -54,17 +70,19 @@ public final class Interpreter {
         // 1. Fetch & decode instruction at current PC
         Instruction ins = decoder.decode(code, frame.pc());
 
-        // 2. Advance PC to next instruction
+        // 2. Record instruction start PC and advance PC to next sequential instruction
+        frame.setLastInstructionPc(ins.pc());
         frame.advancePc(ins.length());
 
         // 3. Dispatch opcode execution
-        executeInstruction(ins, frame);
+        executeInstruction(ins, frame, frameStack, code.length);
 
         return ins;
     }
 
     /**
-     * Runs the frame sequentially until its PC reaches the end of the method's code array.
+     * Runs the frame sequentially until its PC reaches the end of the method's code array
+     * or the frame completes.
      */
     public void execute(Frame frame) {
         Objects.requireNonNull(frame, "frame cannot be null");
@@ -74,12 +92,27 @@ public final class Interpreter {
         );
         int codeLength = codeAttr.codeLength();
 
-        while (frame.pc() < codeLength) {
-            step(frame);
+        while (!frame.isCompleted() && frame.pc() < codeLength) {
+            step(frame, null);
         }
     }
 
-    private void executeInstruction(Instruction ins, Frame frame) {
+    /**
+     * Runs execution across a FrameStack until all frames have returned and the call stack is empty.
+     */
+    public void execute(FrameStack frameStack) {
+        Objects.requireNonNull(frameStack, "frameStack cannot be null");
+        while (!frameStack.isEmpty()) {
+            Frame current = frameStack.current();
+            if (current.isCompleted()) {
+                frameStack.pop();
+                continue;
+            }
+            step(current, frameStack);
+        }
+    }
+
+    private void executeInstruction(Instruction ins, Frame frame, FrameStack frameStack, int codeLength) {
         switch (ins.opcode()) {
             case NOP -> {
                 // Do nothing
@@ -148,6 +181,95 @@ public final class Interpreter {
                 int val = frame.operandStack().popInt();
                 frame.operandStack().push(Value.ofInt(-val));
             }
+            case IINC -> {
+                int localIndex = ins.localIndex();
+                int constVal = ins.incrementConst();
+                int currentVal = frame.locals().getInt(localIndex);
+                frame.locals().setInt(localIndex, currentVal + constVal);
+            }
+            case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE -> {
+                int val = frame.operandStack().popInt();
+                boolean condition = switch (ins.opcode()) {
+                    case IFEQ -> val == 0;
+                    case IFNE -> val != 0;
+                    case IFLT -> val < 0;
+                    case IFGE -> val >= 0;
+                    case IFGT -> val > 0;
+                    case IFLE -> val <= 0;
+                    default -> throw new AssertionError();
+                };
+                if (condition) {
+                    jumpTo(frame, ins, codeLength);
+                }
+            }
+            case IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE -> {
+                int val2 = frame.operandStack().popInt();
+                int val1 = frame.operandStack().popInt();
+                boolean condition = switch (ins.opcode()) {
+                    case IF_ICMPEQ -> val1 == val2;
+                    case IF_ICMPNE -> val1 != val2;
+                    case IF_ICMPLT -> val1 < val2;
+                    case IF_ICMPGE -> val1 >= val2;
+                    case IF_ICMPGT -> val1 > val2;
+                    case IF_ICMPLE -> val1 <= val2;
+                    default -> throw new AssertionError();
+                };
+                if (condition) {
+                    jumpTo(frame, ins, codeLength);
+                }
+            }
+            case GOTO -> {
+                jumpTo(frame, ins, codeLength);
+            }
+            case RETURN -> {
+                String desc = frame.method().descriptor(frame.constantPool());
+                if (!desc.endsWith("V")) {
+                    throw new StackFaultException(
+                            String.format("return opcode executed in method '%s' with non-void return descriptor '%s'",
+                                    frame.method().name(frame.constantPool()), desc)
+                    );
+                }
+                frame.markCompleted();
+                if (frameStack != null) {
+                    if (frameStack.isEmpty() || frameStack.current() != frame) {
+                        throw new StackFaultException("FrameStack mismatch on return: active frame is not top of call stack");
+                    }
+                    frameStack.pop();
+                }
+            }
+            case IRETURN -> {
+                int returnVal = frame.operandStack().popInt();
+                String desc = frame.method().descriptor(frame.constantPool());
+                char retType = desc.charAt(desc.length() - 1);
+                if (retType != 'I' && retType != 'Z' && retType != 'B' && retType != 'C' && retType != 'S') {
+                    throw new StackFaultException(
+                            String.format("ireturn opcode executed in method '%s' with incompatible return descriptor '%s'",
+                                    frame.method().name(frame.constantPool()), desc)
+                    );
+                }
+                frame.markCompleted();
+                frame.setReturnValue(Value.ofInt(returnVal));
+                if (frameStack != null) {
+                    if (frameStack.isEmpty() || frameStack.current() != frame) {
+                        throw new StackFaultException("FrameStack mismatch on ireturn: active frame is not top of call stack");
+                    }
+                    frameStack.pop();
+                    if (!frameStack.isEmpty()) {
+                        frameStack.current().operandStack().push(Value.ofInt(returnVal));
+                    }
+                }
+            }
         }
+    }
+
+    private void jumpTo(Frame frame, Instruction ins, int codeLength) {
+        int target = ins.pc() + ins.branchOffset();
+        if (target < 0 || target >= codeLength) {
+            throw new StackFaultException(
+                    String.format("Branch target %d out of bounds (instruction PC %d, offset %+d, code length %d)",
+                            target, ins.pc(), ins.branchOffset(), codeLength)
+            );
+        }
+        frame.setPc(target);
     }
 }

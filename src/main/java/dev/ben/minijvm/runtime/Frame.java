@@ -7,6 +7,7 @@ import dev.ben.minijvm.classfile.MethodInfo;
 import dev.ben.minijvm.exception.StackFaultException;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Execution frame for a single guest method invocation (JVMS 2.6).
@@ -18,6 +19,9 @@ public final class Frame {
     private final LocalVariables locals;
     private final OperandStack operandStack;
     private int pc;
+    private int lastInstructionPc = -1;
+    private boolean completed = false;
+    private Value returnValue = null;
 
     public Frame(ClassFile classFile, MethodInfo method) {
         Objects.requireNonNull(classFile, "classFile cannot be null");
@@ -93,6 +97,33 @@ public final class Frame {
 
     public void advancePc(int delta) {
         setPc(this.pc + delta);
+    }
+
+    public int lastInstructionPc() {
+        return lastInstructionPc;
+    }
+
+    public void setLastInstructionPc(int lastInstructionPc) {
+        if (lastInstructionPc < 0) {
+            throw new StackFaultException("lastInstructionPc cannot be negative: " + lastInstructionPc);
+        }
+        this.lastInstructionPc = lastInstructionPc;
+    }
+
+    public boolean isCompleted() {
+        return completed;
+    }
+
+    public void markCompleted() {
+        this.completed = true;
+    }
+
+    public Optional<Value> returnValue() {
+        return Optional.ofNullable(returnValue);
+    }
+
+    public void setReturnValue(Value returnValue) {
+        this.returnValue = returnValue;
     }
 
     public int maxLocals() {

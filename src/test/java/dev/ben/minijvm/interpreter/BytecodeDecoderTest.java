@@ -150,8 +150,8 @@ class BytecodeDecoderTest {
     @DisplayName("Unsupported standard JVM opcodes throw UnsupportedFeatureException")
     void testUnsupportedOpcodes() {
         byte[] code = new byte[]{
-                0x61, // ladd (unsupported in Phase 03)
-                (byte) 0xB1  // return (unsupported in Phase 03)
+                0x61, // ladd (unsupported)
+                (byte) 0xB2  // getstatic (unsupported)
         };
 
         assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(code, 0));

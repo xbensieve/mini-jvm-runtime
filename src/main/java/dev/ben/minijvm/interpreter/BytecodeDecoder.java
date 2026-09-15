@@ -65,8 +65,15 @@ public final class BytecodeDecoder {
             case ILOAD_2, ISTORE_2 -> 2;
             case ILOAD_3, ISTORE_3 -> 3;
             case IADD, ISUB, IMUL, IDIV, IREM, INEG -> 0;
+            case IINC -> code[pc + 1] & 0xFF;
+            case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
+                 IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE,
+                 GOTO -> (short) (((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF));
+            case IRETURN, RETURN -> 0;
         };
 
-        return new Instruction(opcode, pc, insLength, operand);
+        int secondaryOperand = (opcode == Opcode.IINC) ? (byte) code[pc + 2] : 0;
+
+        return new Instruction(opcode, pc, insLength, operand, secondaryOperand);
     }
 }
