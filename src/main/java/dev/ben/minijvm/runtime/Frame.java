@@ -14,13 +14,14 @@ import java.util.Optional;
  * Owns local variables, operand stack, program counter, and method/constant pool context.
  */
 public final class Frame {
+    private final ClassFile classFile;
     private final MethodInfo method;
     private final ConstantPool constantPool;
     private final LocalVariables locals;
     private final OperandStack operandStack;
     private int pc;
     private int lastInstructionPc = -1;
-    private boolean completed = false;
+    private FrameStatus status = FrameStatus.RUNNING;
     private Value returnValue = null;
 
     public Frame(ClassFile classFile, MethodInfo method) {
@@ -32,6 +33,7 @@ public final class Frame {
                         + method.name(classFile.constantPool()))
         );
 
+        this.classFile = classFile;
         this.method = method;
         this.constantPool = classFile.constantPool();
         this.locals = new LocalVariables(code.maxLocals());
@@ -53,11 +55,16 @@ public final class Frame {
             throw new StackFaultException("Frame maxStack cannot be negative: " + maxStack);
         }
 
+        this.classFile = null;
         this.method = method;
         this.constantPool = constantPool;
         this.locals = new LocalVariables(maxLocals);
         this.operandStack = new OperandStack(maxStack);
         this.pc = 0;
+    }
+
+    public Optional<ClassFile> classFile() {
+        return Optional.ofNullable(classFile);
     }
 
     public MethodInfo method() {
@@ -110,12 +117,44 @@ public final class Frame {
         this.lastInstructionPc = lastInstructionPc;
     }
 
+    public FrameStatus status() {
+        return status;
+    }
+
+    public boolean isRunning() {
+        return status == FrameStatus.RUNNING;
+    }
+
+    public boolean isReturned() {
+        return status == FrameStatus.RETURNED;
+    }
+
+    public boolean hasReachedEndOfCode() {
+        return status == FrameStatus.COMPLETED_AT_END;
+    }
+
+    public boolean hasFailed() {
+        return status == FrameStatus.FAILED;
+    }
+
     public boolean isCompleted() {
-        return completed;
+        return status == FrameStatus.RETURNED || status == FrameStatus.COMPLETED_AT_END;
+    }
+
+    public void markReturned() {
+        this.status = FrameStatus.RETURNED;
+    }
+
+    public void markCompletedAtEnd() {
+        this.status = FrameStatus.COMPLETED_AT_END;
+    }
+
+    public void markFailed() {
+        this.status = FrameStatus.FAILED;
     }
 
     public void markCompleted() {
-        this.completed = true;
+        markReturned();
     }
 
     public Optional<Value> returnValue() {

@@ -19,9 +19,9 @@ class ControlFlowDecoderTest {
     private final BytecodeDecoder decoder = new BytecodeDecoder();
 
     @Test
-    @DisplayName("Opcode registry contains 43 concrete opcodes after Phase 04")
+    @DisplayName("Opcode registry contains 48 concrete opcodes after Phase 05")
     void testOpcodeCount() {
-        assertEquals(43, Opcode.values().length, "Opcode registry must contain exactly 43 opcodes (27 Phase 03 + 16 Phase 04)");
+        assertEquals(48, Opcode.values().length, "Opcode registry must contain exactly 48 opcodes (27 Phase 03 + 16 Phase 04 + 5 Phase 05)");
     }
 
     @ParameterizedTest(name = "Decode branch opcode {0} with signed positive offset")

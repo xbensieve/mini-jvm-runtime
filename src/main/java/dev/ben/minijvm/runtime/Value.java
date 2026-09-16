@@ -68,6 +68,10 @@ public sealed interface Value permits PrimitiveValue, ReferenceValue {
         return new ObjectReference(handle);
     }
 
+    static ObjectReference ofReference(long handle, String runtimeClassName) {
+        return new ObjectReference(handle, runtimeClassName);
+    }
+
     static NullReference nullRef() {
         return NullReference.INSTANCE;
     }

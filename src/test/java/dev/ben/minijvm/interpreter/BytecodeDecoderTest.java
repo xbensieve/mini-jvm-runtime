@@ -159,10 +159,18 @@ class BytecodeDecoderTest {
     }
 
     @Test
-    @DisplayName("Invalid opcode bytes throw ClassFormatException")
-    void testInvalidOpcodeBytes() {
-        byte[] code = new byte[]{(byte) 0xFD};
-        assertThrows(ClassFormatException.class, () -> decoder.decode(code, 0));
+    @DisplayName("Reserved opcode bytes (0xCA breakpoint, 0xFE impdep1, 0xFF impdep2) throw ClassFormatException")
+    void testReservedOpcodeBytes() {
+        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xCA}, 0));
+        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xFE}, 0));
+        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xFF}, 0));
+    }
+
+    @Test
+    @DisplayName("Undefined opcode bytes (0xCB..0xFD) throw ClassFormatException")
+    void testUndefinedOpcodeBytes() {
+        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xCB}, 0));
+        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xFD}, 0));
     }
 
     @Test

@@ -1,12 +1,23 @@
 package dev.ben.minijvm.interpreter;
 
+import dev.ben.minijvm.classfile.ClassFile;
 import dev.ben.minijvm.classfile.CodeAttribute;
+import dev.ben.minijvm.classfile.ConstantPool;
+import dev.ben.minijvm.classfile.ConstantPoolEntry;
+import dev.ben.minijvm.classfile.MethodDescriptor;
 import dev.ben.minijvm.exception.ArithmeticFaultException;
+import dev.ben.minijvm.exception.ClassFormatException;
 import dev.ben.minijvm.exception.StackFaultException;
+import dev.ben.minijvm.exception.UnsupportedFeatureException;
 import dev.ben.minijvm.opcode.Instruction;
+import dev.ben.minijvm.opcode.Opcode;
 import dev.ben.minijvm.runtime.Frame;
 import dev.ben.minijvm.runtime.FrameStack;
+import dev.ben.minijvm.runtime.MethodResolver;
+import dev.ben.minijvm.runtime.MethodSelector;
+import dev.ben.minijvm.runtime.ObjectReference;
 import dev.ben.minijvm.runtime.Value;
+import dev.ben.minijvm.runtime.ValueType;
 
 import java.util.Objects;
 
@@ -18,17 +29,41 @@ import java.util.Objects;
 public final class Interpreter {
 
     private final BytecodeDecoder decoder;
+    private final MethodResolver methodResolver;
+    private final MethodSelector methodSelector;
 
     public Interpreter() {
-        this(new BytecodeDecoder());
+        this(new BytecodeDecoder(), new MethodResolver());
     }
 
     public Interpreter(BytecodeDecoder decoder) {
+        this(decoder, new MethodResolver());
+    }
+
+    public Interpreter(MethodResolver methodResolver) {
+        this(new BytecodeDecoder(), methodResolver);
+    }
+
+    public Interpreter(BytecodeDecoder decoder, MethodResolver methodResolver) {
+        this(decoder, methodResolver, new MethodSelector(methodResolver.classRepository()));
+    }
+
+    public Interpreter(BytecodeDecoder decoder, MethodResolver methodResolver, MethodSelector methodSelector) {
         this.decoder = Objects.requireNonNull(decoder, "decoder cannot be null");
+        this.methodResolver = Objects.requireNonNull(methodResolver, "methodResolver cannot be null");
+        this.methodSelector = Objects.requireNonNull(methodSelector, "methodSelector cannot be null");
     }
 
     public BytecodeDecoder decoder() {
         return decoder;
+    }
+
+    public MethodResolver methodResolver() {
+        return methodResolver;
+    }
+
+    public MethodSelector methodSelector() {
+        return methodSelector;
     }
 
     /**
@@ -51,6 +86,10 @@ public final class Interpreter {
      */
     public Instruction step(Frame frame, FrameStack frameStack) {
         Objects.requireNonNull(frame, "frame cannot be null");
+
+        if (frame.hasFailed()) {
+            throw new StackFaultException("Cannot step frame: frame execution has already failed");
+        }
 
         if (frame.isCompleted()) {
             throw new StackFaultException("Cannot step frame: frame has already completed execution");
@@ -75,7 +114,12 @@ public final class Interpreter {
         frame.advancePc(ins.length());
 
         // 3. Dispatch opcode execution
-        executeInstruction(ins, frame, frameStack, code.length);
+        try {
+            executeInstruction(ins, frame, frameStack, code.length);
+        } catch (RuntimeException e) {
+            frame.markFailed();
+            throw e;
+        }
 
         return ins;
     }
@@ -86,15 +130,9 @@ public final class Interpreter {
      */
     public void execute(Frame frame) {
         Objects.requireNonNull(frame, "frame cannot be null");
-
-        CodeAttribute codeAttr = frame.method().code().orElseThrow(() ->
-                new StackFaultException("Cannot execute frame for method without Code attribute")
-        );
-        int codeLength = codeAttr.codeLength();
-
-        while (!frame.isCompleted() && frame.pc() < codeLength) {
-            step(frame, null);
-        }
+        FrameStack frameStack = new FrameStack();
+        frameStack.push(frame);
+        execute(frameStack);
     }
 
     /**
@@ -105,6 +143,12 @@ public final class Interpreter {
         while (!frameStack.isEmpty()) {
             Frame current = frameStack.current();
             if (current.isCompleted()) {
+                frameStack.pop();
+                continue;
+            }
+            int codeLength = current.method().code().map(CodeAttribute::codeLength).orElse(0);
+            if (current.isRunning() && current.pc() >= codeLength) {
+                current.markCompletedAtEnd();
                 frameStack.pop();
                 continue;
             }
@@ -125,6 +169,30 @@ public final class Interpreter {
             }
             case BIPUSH, SIPUSH -> {
                 frame.operandStack().push(Value.ofInt(ins.operand()));
+            }
+            case LDC, LDC_W -> {
+                int cpIndex = ins.constantPoolIndex();
+                ConstantPool cp = frame.constantPool();
+                ConstantPoolEntry entry = cp.get(cpIndex);
+                if (entry instanceof ConstantPoolEntry.IntegerEntry intEntry) {
+                    frame.operandStack().push(Value.ofInt(intEntry.value()));
+                } else if (entry instanceof ConstantPoolEntry.StringEntry) {
+                    frame.operandStack().push(Value.ofReference(cpIndex, "java/lang/String"));
+                } else if (entry instanceof ConstantPoolEntry.LongEntry || entry instanceof ConstantPoolEntry.DoubleEntry) {
+                    throw new ClassFormatException(
+                            String.format("%s cannot load 8-byte constant from constant pool index %d",
+                                    ins.opcode().mnemonic(), cpIndex)
+                    );
+                } else if (entry instanceof ConstantPoolEntry.FloatEntry) {
+                    throw new UnsupportedFeatureException("Float constants via ldc not supported in Phase 05");
+                } else if (entry instanceof ConstantPoolEntry.ClassEntry) {
+                    throw new UnsupportedFeatureException("Class constants via ldc not supported in Phase 05");
+                } else {
+                    throw new ClassFormatException(
+                            String.format("Invalid constant pool entry type %s for %s at index %d",
+                                    entry.getClass().getSimpleName(), ins.opcode().mnemonic(), cpIndex)
+                    );
+                }
             }
             case ILOAD, ILOAD_0, ILOAD_1, ILOAD_2, ILOAD_3 -> {
                 int localIndex = ins.operand();
@@ -223,13 +291,14 @@ public final class Interpreter {
             }
             case RETURN -> {
                 String desc = frame.method().descriptor(frame.constantPool());
-                if (!desc.endsWith("V")) {
+                if (desc == null || !desc.endsWith("V")) {
                     throw new StackFaultException(
                             String.format("return opcode executed in method '%s' with non-void return descriptor '%s'",
                                     frame.method().name(frame.constantPool()), desc)
                     );
                 }
-                frame.markCompleted();
+                frame.operandStack().clear();
+                frame.markReturned();
                 if (frameStack != null) {
                     if (frameStack.isEmpty() || frameStack.current() != frame) {
                         throw new StackFaultException("FrameStack mismatch on return: active frame is not top of call stack");
@@ -240,14 +309,15 @@ public final class Interpreter {
             case IRETURN -> {
                 int returnVal = frame.operandStack().popInt();
                 String desc = frame.method().descriptor(frame.constantPool());
-                char retType = desc.charAt(desc.length() - 1);
+                char retType = (desc != null && !desc.isEmpty()) ? desc.charAt(desc.length() - 1) : '\0';
                 if (retType != 'I' && retType != 'Z' && retType != 'B' && retType != 'C' && retType != 'S') {
                     throw new StackFaultException(
                             String.format("ireturn opcode executed in method '%s' with incompatible return descriptor '%s'",
                                     frame.method().name(frame.constantPool()), desc)
                     );
                 }
-                frame.markCompleted();
+                frame.operandStack().clear();
+                frame.markReturned();
                 frame.setReturnValue(Value.ofInt(returnVal));
                 if (frameStack != null) {
                     if (frameStack.isEmpty() || frameStack.current() != frame) {
@@ -259,17 +329,182 @@ public final class Interpreter {
                     }
                 }
             }
+            case INVOKESTATIC -> {
+                if (frameStack == null) {
+                    throw new StackFaultException("Cannot execute invokestatic without an active FrameStack");
+                }
+                int cpIndex = ins.constantPoolIndex();
+                MethodResolver.ResolvedMethod resolved = methodResolver.resolveMethod(
+                        frame.constantPool(),
+                        frame.classFile().orElse(null),
+                        cpIndex,
+                        Opcode.INVOKESTATIC
+                );
+
+                MethodDescriptor desc = resolved.descriptor();
+                int paramCount = desc.parameterCount();
+                Value[] args = new Value[paramCount];
+                for (int i = paramCount - 1; i >= 0; i--) {
+                    MethodDescriptor.Parameter param = desc.parameters().get(i);
+                    Value val = frame.operandStack().pop();
+                    if (param.isReference()) {
+                        if (!val.isReference()) {
+                            throw new StackFaultException(
+                                    String.format("Type mismatch for parameter %d of '%s': expected reference, got %s",
+                                            i, resolved.method().name(resolved.classFile().constantPool()), val.type())
+                            );
+                        }
+                    } else if (param.isIntEquivalent()) {
+                        if (val.type() != ValueType.INT) {
+                            throw new StackFaultException(
+                                    String.format("Type mismatch for parameter %d of '%s': expected int, got %s",
+                                            i, resolved.method().name(resolved.classFile().constantPool()), val.type())
+                            );
+                        }
+                    }
+                    args[i] = val;
+                }
+
+                Frame callee = new Frame(resolved.classFile(), resolved.method());
+                for (int i = 0; i < paramCount; i++) {
+                    callee.locals().set(i, args[i]);
+                }
+                frameStack.push(callee);
+            }
+            case INVOKEVIRTUAL -> {
+                if (frameStack == null) {
+                    throw new StackFaultException("Cannot execute invokevirtual without an active FrameStack");
+                }
+                int cpIndex = ins.constantPoolIndex();
+                // 1. Symbolic method resolution (JVMS §5.4.3.3)
+                MethodResolver.ResolvedMethod resolved = methodResolver.resolveMethod(
+                        frame.constantPool(),
+                        frame.classFile().orElse(null),
+                        cpIndex,
+                        Opcode.INVOKEVIRTUAL
+                );
+
+                MethodDescriptor desc = resolved.descriptor();
+                int paramCount = desc.parameterCount();
+                Value[] args = new Value[paramCount];
+                for (int i = paramCount - 1; i >= 0; i--) {
+                    MethodDescriptor.Parameter param = desc.parameters().get(i);
+                    Value val = frame.operandStack().pop();
+                    if (param.isReference()) {
+                        if (!val.isReference()) {
+                            throw new StackFaultException(
+                                    String.format("Type mismatch for parameter %d of '%s': expected reference, got %s",
+                                            i, resolved.method().name(resolved.classFile().constantPool()), val.type())
+                            );
+                        }
+                    } else if (param.isIntEquivalent()) {
+                        if (val.type() != ValueType.INT) {
+                            throw new StackFaultException(
+                                    String.format("Type mismatch for parameter %d of '%s': expected int, got %s",
+                                            i, resolved.method().name(resolved.classFile().constantPool()), val.type())
+                            );
+                        }
+                    }
+                    args[i] = val;
+                }
+
+                Value receiver = frame.operandStack().pop();
+                if (!receiver.isReference()) {
+                    throw new StackFaultException(
+                            String.format("Type mismatch for receiver of '%s': expected reference, got %s",
+                                    resolved.method().name(resolved.classFile().constantPool()), receiver.type())
+                    );
+                }
+                if (receiver.isNull()) {
+                    throw new StackFaultException(
+                            String.format("Null pointer dereference: cannot invoke '%s' on null receiver",
+                                    resolved.method().name(resolved.classFile().constantPool()))
+                    );
+                }
+
+                ObjectReference objRef = (ObjectReference) receiver;
+                ClassFile receiverClass = methodResolver.classRepository().getClass(objRef.runtimeClassName());
+
+                // 2. Runtime virtual method selection (JVMS §5.4.6 & §6.5)
+                MethodSelector.SelectedMethod selected = methodSelector.selectMethod(resolved, receiverClass);
+
+                Frame callee = new Frame(selected.declaringClass(), selected.method());
+                callee.locals().set(0, receiver);
+                for (int i = 0; i < paramCount; i++) {
+                    callee.locals().set(i + 1, args[i]);
+                }
+                frameStack.push(callee);
+            }
+            case INVOKESPECIAL -> {
+                if (frameStack == null) {
+                    throw new StackFaultException("Cannot execute invokespecial without an active FrameStack");
+                }
+                int cpIndex = ins.constantPoolIndex();
+                // Symbolic method resolution (JVMS §5.4.3.3)
+                MethodResolver.ResolvedMethod resolved = methodResolver.resolveMethod(
+                        frame.constantPool(),
+                        frame.classFile().orElse(null),
+                        cpIndex,
+                        Opcode.INVOKESPECIAL
+                );
+
+                MethodDescriptor desc = resolved.descriptor();
+                int paramCount = desc.parameterCount();
+                Value[] args = new Value[paramCount];
+                for (int i = paramCount - 1; i >= 0; i--) {
+                    MethodDescriptor.Parameter param = desc.parameters().get(i);
+                    Value val = frame.operandStack().pop();
+                    if (param.isReference()) {
+                        if (!val.isReference()) {
+                            throw new StackFaultException(
+                                    String.format("Type mismatch for parameter %d of '%s': expected reference, got %s",
+                                            i, resolved.method().name(resolved.classFile().constantPool()), val.type())
+                            );
+                        }
+                    } else if (param.isIntEquivalent()) {
+                        if (val.type() != ValueType.INT) {
+                            throw new StackFaultException(
+                                    String.format("Type mismatch for parameter %d of '%s': expected int, got %s",
+                                            i, resolved.method().name(resolved.classFile().constantPool()), val.type())
+                            );
+                        }
+                    }
+                    args[i] = val;
+                }
+
+                Value receiver = frame.operandStack().pop();
+                if (!receiver.isReference()) {
+                    throw new StackFaultException(
+                            String.format("Type mismatch for receiver of '%s': expected reference, got %s",
+                                    resolved.method().name(resolved.classFile().constantPool()), receiver.type())
+                    );
+                }
+                if (receiver.isNull()) {
+                    throw new StackFaultException(
+                            String.format("Null pointer dereference: cannot invoke '%s' on null receiver",
+                                    resolved.method().name(resolved.classFile().constantPool()))
+                    );
+                }
+
+                // invokespecial executes the resolved method directly without virtual selection (JVMS §6.5)
+                Frame callee = new Frame(resolved.classFile(), resolved.method());
+                callee.locals().set(0, receiver);
+                for (int i = 0; i < paramCount; i++) {
+                    callee.locals().set(i + 1, args[i]);
+                }
+                frameStack.push(callee);
+            }
         }
     }
 
     private void jumpTo(Frame frame, Instruction ins, int codeLength) {
-        int target = ins.pc() + ins.branchOffset();
-        if (target < 0 || target >= codeLength) {
+        long rawTarget = (long) ins.pc() + ins.branchOffset();
+        if (rawTarget < 0 || rawTarget >= codeLength) {
             throw new StackFaultException(
                     String.format("Branch target %d out of bounds (instruction PC %d, offset %+d, code length %d)",
-                            target, ins.pc(), ins.branchOffset(), codeLength)
+                            rawTarget, ins.pc(), ins.branchOffset(), codeLength)
             );
         }
-        frame.setPc(target);
+        frame.setPc((int) rawTarget);
     }
 }

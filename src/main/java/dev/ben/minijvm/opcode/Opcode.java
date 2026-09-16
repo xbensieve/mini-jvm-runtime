@@ -5,8 +5,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Enumeration of JVM opcodes supported in Phase 03 and Phase 04
- * (43 concrete opcode values: 27 in Phase 03, 16 in Phase 04).
+ * Enumeration of JVM opcodes supported in Phase 03, Phase 04, and Phase 05
+ * (48 concrete opcode values: 27 in Phase 03, 16 in Phase 04, 5 in Phase 05).
  */
 public enum Opcode {
     NOP(0x00, "nop", 1),
@@ -20,6 +20,8 @@ public enum Opcode {
     ICONST_5(0x08, "iconst_5", 1),
     BIPUSH(0x10, "bipush", 2),
     SIPUSH(0x11, "sipush", 3),
+    LDC(0x12, "ldc", 2),
+    LDC_W(0x13, "ldc_w", 3),
     ILOAD(0x15, "iload", 2),
     ILOAD_0(0x1A, "iload_0", 1),
     ILOAD_1(0x1B, "iload_1", 1),
@@ -51,7 +53,10 @@ public enum Opcode {
     IF_ICMPLE(0xA4, "if_icmple", 3),
     GOTO(0xA7, "goto", 3),
     IRETURN(0xAC, "ireturn", 1),
-    RETURN(0xB1, "return", 1);
+    RETURN(0xB1, "return", 1),
+    INVOKEVIRTUAL(0xB6, "invokevirtual", 3),
+    INVOKESPECIAL(0xB7, "invokespecial", 3),
+    INVOKESTATIC(0xB8, "invokestatic", 3);
 
     private final int code;
     private final String mnemonic;
@@ -106,5 +111,13 @@ public enum Opcode {
 
     public boolean isReturn() {
         return this == RETURN || this == IRETURN;
+    }
+
+    public boolean isInvocation() {
+        return this == INVOKEVIRTUAL || this == INVOKESPECIAL || this == INVOKESTATIC;
+    }
+
+    public boolean isConstantPoolAccess() {
+        return this == LDC || this == LDC_W || isInvocation();
     }
 }

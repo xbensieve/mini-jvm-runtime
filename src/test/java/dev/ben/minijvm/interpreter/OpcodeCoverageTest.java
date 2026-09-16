@@ -95,11 +95,19 @@ class OpcodeCoverageTest {
     }
 
     @Test
-    @DisplayName("Explicit invalid opcode bytes (> 0xCA) rejected with ClassFormatException")
-    void testInvalidOpcodeBytes() {
-        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xFD}, 0));
+    @DisplayName("Reserved opcode bytes (0xCA breakpoint, 0xFE impdep1, 0xFF impdep2) rejected with ClassFormatException")
+    void testReservedOpcodeBytes() {
+        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xCA}, 0));
         assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xFE}, 0));
         assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xFF}, 0));
+    }
+
+    @Test
+    @DisplayName("Undefined opcode bytes (0xCB..0xFD) rejected with ClassFormatException")
+    void testUndefinedOpcodeBytes() {
+        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xCB}, 0));
+        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xD0}, 0));
+        assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xFD}, 0));
     }
 
     @Test
@@ -109,8 +117,8 @@ class OpcodeCoverageTest {
         assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(new byte[]{0x61}, 0));
         // getstatic (0xB2)
         assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(new byte[]{(byte) 0xB2, 0x00, 0x01}, 0));
-        // invokevirtual (0xB6)
-        assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(new byte[]{(byte) 0xB6, 0x00, 0x01}, 0));
+        // new (0xBB)
+        assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(new byte[]{(byte) 0xBB, 0x00, 0x01}, 0));
     }
 
     private byte[] buildSampleBytecode(Opcode opcode) {

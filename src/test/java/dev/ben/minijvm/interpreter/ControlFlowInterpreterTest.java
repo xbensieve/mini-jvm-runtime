@@ -4,9 +4,12 @@ import dev.ben.minijvm.classfile.CodeAttribute;
 import dev.ben.minijvm.classfile.ConstantPool;
 import dev.ben.minijvm.classfile.ConstantPoolEntry;
 import dev.ben.minijvm.classfile.MethodInfo;
+import dev.ben.minijvm.exception.ArithmeticFaultException;
 import dev.ben.minijvm.exception.StackFaultException;
+import dev.ben.minijvm.opcode.Opcode;
 import dev.ben.minijvm.runtime.Frame;
 import dev.ben.minijvm.runtime.FrameStack;
+import dev.ben.minijvm.runtime.FrameStatus;
 import dev.ben.minijvm.runtime.Value;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -464,6 +467,236 @@ class ControlFlowInterpreterTest {
         // Caller operand stack now holds the returned value 99
         assertEquals(1, callerFrame.operandStack().slots());
         assertEquals(99, callerFrame.operandStack().popInt());
+    }
+
+    // ==========================================
+    // COMPREHENSIVE CONDITIONAL BRANCH BOUNDARY TESTS (Section 8)
+    // ==========================================
+
+    @Test
+    @DisplayName("Unary conditional branches with 0, positive, negative, MIN_VALUE, and MAX_VALUE")
+    void testUnaryBranchesBoundaries() {
+        int[] testValues = new int[]{0, 1, -1, Integer.MIN_VALUE, Integer.MAX_VALUE};
+
+        for (int val : testValues) {
+            assertUnaryBranch(Opcode.IFEQ, val, val == 0);
+            assertUnaryBranch(Opcode.IFNE, val, val != 0);
+            assertUnaryBranch(Opcode.IFLT, val, val < 0);
+            assertUnaryBranch(Opcode.IFGE, val, val >= 0);
+            assertUnaryBranch(Opcode.IFGT, val, val > 0);
+            assertUnaryBranch(Opcode.IFLE, val, val <= 0);
+        }
+    }
+
+    private void assertUnaryBranch(Opcode opcode, int value, boolean expectJump) {
+        // 0: if<cond> +4 (target 4); 3: nop; 4: nop
+        byte[] code = new byte[]{(byte) opcode.code(), 0x00, 0x04, 0x00, 0x00};
+        Frame frame = createFrame(code, 1, 2, "()V");
+        frame.operandStack().push(Value.ofInt(value));
+
+        interpreter.step(frame);
+
+        int expectedPc = expectJump ? 4 : 3;
+        assertEquals(expectedPc, frame.pc(),
+                String.format("%s with value %d expected PC %d (jump=%b) but got %d",
+                        opcode.mnemonic(), value, expectedPc, expectJump, frame.pc()));
+    }
+
+    @Test
+    @DisplayName("Binary comparison branches with equal, unequal, 0, MIN_VALUE, and MAX_VALUE")
+    void testBinaryComparisonBranchesBoundaries() {
+        int[][] pairs = new int[][]{
+                {10, 10},
+                {0, 0},
+                {Integer.MIN_VALUE, Integer.MIN_VALUE},
+                {Integer.MAX_VALUE, Integer.MAX_VALUE},
+                {10, 20},
+                {20, 10},
+                {0, 1},
+                {1, 0},
+                {-1, 1},
+                {1, -1},
+                {Integer.MIN_VALUE, Integer.MAX_VALUE},
+                {Integer.MAX_VALUE, Integer.MIN_VALUE},
+                {Integer.MIN_VALUE, 0},
+                {0, Integer.MIN_VALUE},
+                {Integer.MAX_VALUE, 0},
+                {0, Integer.MAX_VALUE}
+        };
+
+        for (int[] pair : pairs) {
+            int v1 = pair[0];
+            int v2 = pair[1];
+
+            assertBinaryBranch(Opcode.IF_ICMPEQ, v1, v2, v1 == v2);
+            assertBinaryBranch(Opcode.IF_ICMPNE, v1, v2, v1 != v2);
+            assertBinaryBranch(Opcode.IF_ICMPLT, v1, v2, v1 < v2);
+            assertBinaryBranch(Opcode.IF_ICMPGE, v1, v2, v1 >= v2);
+            assertBinaryBranch(Opcode.IF_ICMPGT, v1, v2, v1 > v2);
+            assertBinaryBranch(Opcode.IF_ICMPLE, v1, v2, v1 <= v2);
+        }
+    }
+
+    private void assertBinaryBranch(Opcode opcode, int val1, int val2, boolean expectJump) {
+        // 0: if_icmp<cond> +5 (target 5); 3: nop; 4: nop; 5: nop
+        byte[] code = new byte[]{(byte) opcode.code(), 0x00, 0x05, 0x00, 0x00, 0x00};
+        Frame frame = createFrame(code, 1, 3, "()V");
+        frame.operandStack().push(Value.ofInt(val1));
+        frame.operandStack().push(Value.ofInt(val2));
+
+        interpreter.step(frame);
+
+        int expectedPc = expectJump ? 5 : 3;
+        assertEquals(expectedPc, frame.pc(),
+                String.format("%s with (%d, %d) expected PC %d (jump=%b) but got %d",
+                        opcode.mnemonic(), val1, val2, expectedPc, expectJump, frame.pc()));
+    }
+
+    // ==========================================
+    // GOTO BOUNDARY & LOOP TESTS (Section 9)
+    // ==========================================
+
+    @Test
+    @DisplayName("goto boundary targets: jump to first instruction and jump to last instruction")
+    void testGotoBoundaryTargets() {
+        // Jump to first instruction (PC 0) from PC 3: offset -3
+        byte[] jumpToFirst = new byte[]{
+                0x00,                                 // 0: nop
+                0x00,                                 // 1: nop
+                0x00,                                 // 2: nop
+                (byte) 0xA7, (byte) 0xFF, (byte) 0xFD // 3: goto -3 -> 0
+        };
+        Frame f1 = createFrame(jumpToFirst, 1, 1, "()V");
+        f1.setPc(3);
+        interpreter.step(f1);
+        assertEquals(0, f1.pc());
+
+        // Jump to last instruction (PC 4) in code length 5: offset +4 from PC 0
+        byte[] jumpToLast = new byte[]{
+                (byte) 0xA7, 0x00, 0x04, // 0: goto +4 -> 4
+                0x00,                    // 3: nop
+                0x00                     // 4: nop (last instruction)
+        };
+        Frame f2 = createFrame(jumpToLast, 1, 1, "()V");
+        interpreter.step(f2);
+        assertEquals(4, f2.pc());
+    }
+
+    @Test
+    @DisplayName("goto backward jump forms iterative loop")
+    void testGotoLoopExecution() {
+        // 0: iconst_5 (len 1)
+        // 1: istore_0 (len 1)
+        // 2: iload_0  (len 1)
+        // 3: ifeq +9 (target 12) (len 3)
+        // 6: iinc 0 by -1 (len 3)
+        // 9: goto -7 (target 2) (len 3)
+        // 12: return (len 1)
+        byte[] code = new byte[]{
+                0x08,                                   // 0: iconst_5
+                0x3B,                                   // 1: istore_0
+                0x1A,                                   // 2: iload_0
+                (byte) 0x99, 0x00, 0x09,                // 3: ifeq +9 -> 12
+                (byte) 0x84, 0x00, (byte) 0xFF,         // 6: iinc 0 by -1
+                (byte) 0xA7, (byte) 0xFF, (byte) 0xF9,  // 9: goto -7 -> 2
+                (byte) 0xB1                             // 12: return
+        };
+        Frame frame = createFrame(code, 1, 2, "()V");
+        interpreter.execute(frame);
+
+        assertTrue(frame.isCompleted());
+        assertEquals(FrameStatus.RETURNED, frame.status());
+        assertEquals(0, frame.locals().getInt(0));
+    }
+
+    // ==========================================
+    // IINC BOUNDARY TESTS (Section 10)
+    // ==========================================
+
+    @Test
+    @DisplayName("iinc boundary values: zero increment, MIN_VALUE arithmetic, index 0, highest index 255, and invalid index")
+    void testIincBoundaries() {
+        // Zero increment: 10 + 0 = 10
+        byte[] codeZero = new byte[]{(byte) 0x84, 0x00, 0x00}; // iinc 0 by 0
+        Frame f1 = createFrame(codeZero, 1, 1, "()V");
+        f1.locals().setInt(0, 10);
+        interpreter.step(f1);
+        assertEquals(10, f1.locals().getInt(0));
+
+        // MIN_VALUE arithmetic: MIN_VALUE + -1 = MAX_VALUE
+        byte[] codeMin = new byte[]{(byte) 0x84, 0x00, (byte) 0xFF}; // iinc 0 by -1
+        Frame f2 = createFrame(codeMin, 1, 1, "()V");
+        f2.locals().setInt(0, Integer.MIN_VALUE);
+        interpreter.step(f2);
+        assertEquals(Integer.MAX_VALUE, f2.locals().getInt(0));
+
+        // Highest supported local index 255 in frame with maxLocals 256
+        byte[] codeHigh = new byte[]{(byte) 0x84, (byte) 0xFF, 0x05}; // iinc 255 by 5
+        Frame f3 = createFrame(codeHigh, 256, 1, "()V");
+        f3.locals().setInt(255, 100);
+        interpreter.step(f3);
+        assertEquals(105, f3.locals().getInt(255));
+
+        // Invalid local index: index 5 when maxLocals is 5 (valid indices are 0..4)
+        byte[] codeOutOfBounds = new byte[]{(byte) 0x84, 0x05, 0x01}; // iinc 5 by 1
+        Frame f4 = createFrame(codeOutOfBounds, 5, 1, "()V");
+        assertThrows(StackFaultException.class, () -> interpreter.step(f4));
+    }
+
+    // ==========================================
+    // FRAME LIFECYCLE & STATUS TESTS (Section 12)
+    // ==========================================
+
+    @Test
+    @DisplayName("FrameStatus lifecycle explicitly distinguishes RUNNING, RETURNED, COMPLETED_AT_END, and FAILED")
+    void testFrameStatusLifecycleTransitions() {
+        // 1. Initial status is RUNNING
+        byte[] code = new byte[]{0x00, (byte) 0xB1}; // nop, return
+        Frame frame = createFrame(code, 1, 1, "()V");
+        assertEquals(FrameStatus.RUNNING, frame.status());
+        assertTrue(frame.isRunning());
+        assertFalse(frame.isCompleted());
+        assertFalse(frame.isReturned());
+        assertFalse(frame.hasReachedEndOfCode());
+        assertFalse(frame.hasFailed());
+
+        // 2. Explicit return transitions to RETURNED
+        interpreter.step(frame); // nop
+        assertEquals(FrameStatus.RUNNING, frame.status());
+        interpreter.step(frame); // return
+        assertEquals(FrameStatus.RETURNED, frame.status());
+        assertTrue(frame.isReturned());
+        assertTrue(frame.isCompleted());
+        assertFalse(frame.isRunning());
+
+        // Stepping a completed (RETURNED) frame throws StackFaultException
+        assertThrows(StackFaultException.class, () -> interpreter.step(frame));
+
+        // 3. Reaching end-of-code without return transitions to COMPLETED_AT_END in execute()
+        byte[] codeNoReturn = new byte[]{0x00, 0x00}; // nop, nop
+        Frame frameEnd = createFrame(codeNoReturn, 1, 1, "()V");
+        interpreter.execute(frameEnd);
+        assertEquals(FrameStatus.COMPLETED_AT_END, frameEnd.status());
+        assertTrue(frameEnd.hasReachedEndOfCode());
+        assertTrue(frameEnd.isCompleted());
+        assertFalse(frameEnd.isReturned());
+
+        // Stepping a COMPLETED_AT_END frame throws StackFaultException
+        assertThrows(StackFaultException.class, () -> interpreter.step(frameEnd));
+
+        // 4. Execution fault transitions to FAILED
+        byte[] codeDivZero = new byte[]{0x10, 10, 0x03, 0x6C}; // bipush 10, iconst_0, idiv
+        Frame frameFail = createFrame(codeDivZero, 1, 2, "()V");
+        interpreter.step(frameFail); // bipush 10
+        interpreter.step(frameFail); // iconst_0
+        assertThrows(ArithmeticFaultException.class, () -> interpreter.step(frameFail)); // idiv / by zero
+        assertEquals(FrameStatus.FAILED, frameFail.status());
+        assertTrue(frameFail.hasFailed());
+        assertFalse(frameFail.isRunning());
+        assertFalse(frameFail.isCompleted());
+
+        // Stepping a FAILED frame throws StackFaultException
+        assertThrows(StackFaultException.class, () -> interpreter.step(frameFail));
     }
 
     private Frame createFrame(byte[] code, int maxLocals, int maxStack, String descriptor) {

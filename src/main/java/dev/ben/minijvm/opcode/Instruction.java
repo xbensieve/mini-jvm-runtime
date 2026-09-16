@@ -39,6 +39,10 @@ public record Instruction(
         return operand;
     }
 
+    public int constantPoolIndex() {
+        return operand;
+    }
+
     public int incrementConst() {
         return secondaryOperand;
     }
@@ -47,6 +51,8 @@ public record Instruction(
     public String toString() {
         return switch (opcode) {
             case BIPUSH, SIPUSH -> String.format("%d: %s %d", pc, opcode.mnemonic(), operand);
+            case LDC, LDC_W -> String.format("%d: %s #%d", pc, opcode.mnemonic(), operand);
+            case INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC -> String.format("%d: %s #%d", pc, opcode.mnemonic(), operand);
             case ILOAD, ISTORE -> String.format("%d: %s %d", pc, opcode.mnemonic(), operand);
             case IINC -> String.format("%d: %s %d by %d", pc, opcode.mnemonic(), operand, secondaryOperand);
             case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,

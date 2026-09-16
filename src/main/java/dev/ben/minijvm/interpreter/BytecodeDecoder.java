@@ -27,13 +27,18 @@ public final class BytecodeDecoder {
         Optional<Opcode> opcodeOpt = Opcode.findByCode(byteCode);
 
         if (opcodeOpt.isEmpty()) {
-            if (byteCode <= 0xCA) {
+            if (isReservedOpcode(byteCode)) {
+                throw new ClassFormatException(
+                        String.format("Reserved opcode byte 0x%02X (%s) at PC %d is not permitted in valid class files",
+                                byteCode, reservedOpcodeName(byteCode), pc)
+                );
+            } else if (isStandardJvmOpcode(byteCode)) {
                 throw new UnsupportedFeatureException(
-                        String.format("Unsupported opcode byte 0x%02X at PC %d", byteCode, pc)
+                        String.format("Unsupported standard JVM opcode byte 0x%02X at PC %d", byteCode, pc)
                 );
             } else {
                 throw new ClassFormatException(
-                        String.format("Unknown opcode byte 0x%02X at PC %d", byteCode, pc)
+                        String.format("Undefined opcode byte 0x%02X at PC %d", byteCode, pc)
                 );
             }
         }
@@ -59,6 +64,9 @@ public final class BytecodeDecoder {
             case ICONST_5 -> 5;
             case BIPUSH -> (byte) code[pc + 1];
             case SIPUSH -> (short) (((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF));
+            case LDC -> code[pc + 1] & 0xFF;
+            case LDC_W, INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC ->
+                    ((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF);
             case ILOAD, ISTORE -> code[pc + 1] & 0xFF;
             case ILOAD_0, ISTORE_0 -> 0;
             case ILOAD_1, ISTORE_1 -> 1;
@@ -75,5 +83,22 @@ public final class BytecodeDecoder {
         int secondaryOperand = (opcode == Opcode.IINC) ? (byte) code[pc + 2] : 0;
 
         return new Instruction(opcode, pc, insLength, operand, secondaryOperand);
+    }
+
+    public static boolean isReservedOpcode(int byteCode) {
+        return byteCode == 0xCA || byteCode == 0xFE || byteCode == 0xFF;
+    }
+
+    public static String reservedOpcodeName(int byteCode) {
+        return switch (byteCode) {
+            case 0xCA -> "breakpoint";
+            case 0xFE -> "impdep1";
+            case 0xFF -> "impdep2";
+            default -> "reserved";
+        };
+    }
+
+    public static boolean isStandardJvmOpcode(int byteCode) {
+        return byteCode >= 0x00 && byteCode <= 0xC9;
     }
 }
