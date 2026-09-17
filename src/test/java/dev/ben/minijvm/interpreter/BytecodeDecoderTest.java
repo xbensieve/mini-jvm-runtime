@@ -151,7 +151,7 @@ class BytecodeDecoderTest {
     void testUnsupportedOpcodes() {
         byte[] code = new byte[]{
                 0x61, // ladd (unsupported)
-                (byte) 0xB2  // getstatic (unsupported)
+                0x69  // lmul (unsupported)
         };
 
         assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(code, 0));

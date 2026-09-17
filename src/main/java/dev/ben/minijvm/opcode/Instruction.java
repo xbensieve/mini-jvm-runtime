@@ -47,14 +47,25 @@ public record Instruction(
         return secondaryOperand;
     }
 
+    public int atype() {
+        return operand;
+    }
+
+    public int dimensions() {
+        return secondaryOperand;
+    }
+
     @Override
     public String toString() {
         return switch (opcode) {
             case BIPUSH, SIPUSH -> String.format("%d: %s %d", pc, opcode.mnemonic(), operand);
             case LDC, LDC_W -> String.format("%d: %s #%d", pc, opcode.mnemonic(), operand);
             case INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC -> String.format("%d: %s #%d", pc, opcode.mnemonic(), operand);
-            case ILOAD, ISTORE -> String.format("%d: %s %d", pc, opcode.mnemonic(), operand);
+            case ILOAD, ISTORE, ALOAD, ASTORE -> String.format("%d: %s %d", pc, opcode.mnemonic(), operand);
             case IINC -> String.format("%d: %s %d by %d", pc, opcode.mnemonic(), operand, secondaryOperand);
+            case NEWARRAY -> String.format("%d: %s atype=%d", pc, opcode.mnemonic(), operand);
+            case ANEWARRAY -> String.format("%d: %s #%d", pc, opcode.mnemonic(), operand);
+            case MULTIANEWARRAY -> String.format("%d: %s #%d dim=%d", pc, opcode.mnemonic(), operand, secondaryOperand);
             case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
                  IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE,
                  GOTO -> String.format("%d: %s %+d -> %d", pc, opcode.mnemonic(), operand, pc + operand);

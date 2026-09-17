@@ -129,4 +129,22 @@ class LocalVariablesTest {
         assertTrue(val.isNull());
         assertSame(Value.nullRef(), val);
     }
+
+    @Test
+    @DisplayName("activeValues returns only populated slots, ignoring uninitialized and phantom slots")
+    void testActiveValues() {
+        LocalVariables locals = new LocalVariables(5);
+        assertTrue(locals.activeValues().isEmpty());
+
+        locals.setInt(0, 42);
+        locals.setLong(1, 1000L); // occupies slot 1 and 2 (phantom)
+        locals.setReference(4, Value.ofReference(88L));
+        // slot 3 remains uninitialized
+
+        var active = locals.activeValues();
+        assertEquals(3, active.size());
+        assertEquals(Value.ofInt(42), active.get(0));
+        assertEquals(Value.ofLong(1000L), active.get(1));
+        assertEquals(Value.ofReference(88L), active.get(2));
+    }
 }

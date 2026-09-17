@@ -19,15 +19,16 @@ class ControlFlowDecoderTest {
     private final BytecodeDecoder decoder = new BytecodeDecoder();
 
     @Test
-    @DisplayName("Opcode registry contains 48 concrete opcodes after Phase 05")
+    @DisplayName("Opcode registry contains 85 concrete opcodes after Phase 07")
     void testOpcodeCount() {
-        assertEquals(48, Opcode.values().length, "Opcode registry must contain exactly 48 opcodes (27 Phase 03 + 16 Phase 04 + 5 Phase 05)");
+        assertEquals(85, Opcode.values().length, "Opcode registry must contain exactly 85 opcodes (27 Phase 03 + 16 Phase 04 + 5 Phase 05 + 32 Phase 06 + 5 Phase 07)");
     }
 
     @ParameterizedTest(name = "Decode branch opcode {0} with signed positive offset")
     @EnumSource(value = Opcode.class, names = {
             "IFEQ", "IFNE", "IFLT", "IFGE", "IFGT", "IFLE",
             "IF_ICMPEQ", "IF_ICMPNE", "IF_ICMPLT", "IF_ICMPGE", "IF_ICMPGT", "IF_ICMPLE",
+            "IF_ACMPEQ", "IF_ACMPNE", "IFNULL", "IFNONNULL",
             "GOTO"
     })
     @DisplayName("Branch opcodes decode 16-bit big-endian positive offsets")
@@ -48,6 +49,7 @@ class ControlFlowDecoderTest {
     @EnumSource(value = Opcode.class, names = {
             "IFEQ", "IFNE", "IFLT", "IFGE", "IFGT", "IFLE",
             "IF_ICMPEQ", "IF_ICMPNE", "IF_ICMPLT", "IF_ICMPGE", "IF_ICMPGT", "IF_ICMPLE",
+            "IF_ACMPEQ", "IF_ACMPNE", "IFNULL", "IFNONNULL",
             "GOTO"
     })
     @DisplayName("Branch opcodes decode 16-bit big-endian negative offsets")

@@ -65,22 +65,30 @@ public final class BytecodeDecoder {
             case BIPUSH -> (byte) code[pc + 1];
             case SIPUSH -> (short) (((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF));
             case LDC -> code[pc + 1] & 0xFF;
-            case LDC_W, INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC ->
+            case LDC_W, INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC,
+                 GETSTATIC, PUTSTATIC, GETFIELD, PUTFIELD, NEW,
+                 ANEWARRAY, MULTIANEWARRAY ->
                     ((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF);
-            case ILOAD, ISTORE -> code[pc + 1] & 0xFF;
-            case ILOAD_0, ISTORE_0 -> 0;
-            case ILOAD_1, ISTORE_1 -> 1;
-            case ILOAD_2, ISTORE_2 -> 2;
-            case ILOAD_3, ISTORE_3 -> 3;
+            case NEWARRAY -> code[pc + 1] & 0xFF;
+            case ARRAYLENGTH, ATHROW, IALOAD, AALOAD, BALOAD, CALOAD, SALOAD,
+                 IASTORE, AASTORE, BASTORE, CASTORE, SASTORE -> 0;
+            case ILOAD, ISTORE, ALOAD, ASTORE -> code[pc + 1] & 0xFF;
+            case ILOAD_0, ISTORE_0, ALOAD_0, ASTORE_0 -> 0;
+            case ILOAD_1, ISTORE_1, ALOAD_1, ASTORE_1 -> 1;
+            case ILOAD_2, ISTORE_2, ALOAD_2, ASTORE_2 -> 2;
+            case ILOAD_3, ISTORE_3, ALOAD_3, ASTORE_3 -> 3;
+            case DUP, POP -> 0;
             case IADD, ISUB, IMUL, IDIV, IREM, INEG -> 0;
             case IINC -> code[pc + 1] & 0xFF;
             case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
                  IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE,
+                 IF_ACMPEQ, IF_ACMPNE, IFNULL, IFNONNULL,
                  GOTO -> (short) (((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF));
-            case IRETURN, RETURN -> 0;
+            case IRETURN, ARETURN, RETURN -> 0;
         };
 
-        int secondaryOperand = (opcode == Opcode.IINC) ? (byte) code[pc + 2] : 0;
+        int secondaryOperand = (opcode == Opcode.IINC) ? (byte) code[pc + 2]
+                : (opcode == Opcode.MULTIANEWARRAY) ? (code[pc + 3] & 0xFF) : 0;
 
         return new Instruction(opcode, pc, insLength, operand, secondaryOperand);
     }

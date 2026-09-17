@@ -2,7 +2,10 @@ package dev.ben.minijvm.runtime;
 
 import dev.ben.minijvm.exception.StackFaultException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Fixed-capacity local variable table for a single method frame (JVMS 2.6.1).
@@ -108,6 +111,20 @@ public final class LocalVariables {
 
     public boolean isPhantom(int index) {
         return index >= 0 && index < capacity && slots[index] instanceof PhantomSlot;
+    }
+
+    /**
+     * Returns an unmodifiable list of all active slot values in this local variable table,
+     * ignoring uninitialized and phantom slots.
+     */
+    public List<Value> activeValues() {
+        List<Value> values = new ArrayList<>();
+        for (int i = 0; i < capacity; i++) {
+            if (slots[i] instanceof ValueSlot vs) {
+                values.add(vs.value());
+            }
+        }
+        return Collections.unmodifiableList(values);
     }
 
     public int getInt(int index) {

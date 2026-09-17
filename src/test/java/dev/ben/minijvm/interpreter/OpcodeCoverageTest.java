@@ -115,10 +115,10 @@ class OpcodeCoverageTest {
     void testUnsupportedStandardOpcodes() {
         // ladd (0x61)
         assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(new byte[]{0x61}, 0));
-        // getstatic (0xB2)
-        assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(new byte[]{(byte) 0xB2, 0x00, 0x01}, 0));
-        // new (0xBB)
-        assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(new byte[]{(byte) 0xBB, 0x00, 0x01}, 0));
+        // lmul (0x69)
+        assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(new byte[]{0x69}, 0));
+        // lsub (0x65)
+        assertThrows(UnsupportedFeatureException.class, () -> decoder.decode(new byte[]{0x65}, 0));
     }
 
     private byte[] buildSampleBytecode(Opcode opcode) {

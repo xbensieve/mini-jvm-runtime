@@ -141,6 +141,10 @@ public final class Frame {
         return status == FrameStatus.RETURNED || status == FrameStatus.COMPLETED_AT_END;
     }
 
+    public void setStatus(FrameStatus status) {
+        this.status = Objects.requireNonNull(status, "status cannot be null");
+    }
+
     public void markReturned() {
         this.status = FrameStatus.RETURNED;
     }
