@@ -45,15 +45,15 @@ public final class GarbageCollector {
 
         trace("Starting GC cycle. Initial heap object count: " + heap.objectCount());
 
-        // 1. Root Resolution Phase
+        // 1. Root Resolution
         Set<Long> roots = resolveRoots(heap, activeFrames);
         trace(String.format("Root resolution identified %d root handle(s): %s", roots.size(), roots));
 
-        // 2. Mark Phase (Object Graph Traversal)
+        // 2. Mark (Object Graph Traversal)
         Set<Long> marked = markReachableObjects(heap, roots);
         trace(String.format("Mark phase traversed %d reachable handle(s): %s", marked.size(), marked));
 
-        // 3. Sweep Phase (Memory Reclamation)
+        // 3. Sweep (Memory Reclamation)
         Set<Long> reclaimed = heap.sweep(marked);
         trace(String.format("Sweep phase deallocated %d unreachable handle(s): %s", reclaimed.size(), reclaimed));
 

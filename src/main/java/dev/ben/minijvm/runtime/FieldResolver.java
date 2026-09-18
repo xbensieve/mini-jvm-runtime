@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Resolves symbolic field references from class constant pools (JVMS §5.4.3.2).
+ * Resolves symbolic field references from class constant pools (JVMS Section 5.4.3.2).
  * Strictly separated from instruction execution and field storage access.
  */
 public final class FieldResolver {
@@ -94,7 +94,7 @@ public final class FieldResolver {
             );
         }
 
-        // 5. Search for field definition in target class and its superclasses (JVMS §5.4.3.2)
+        // 5. Search for field definition in target class and its superclasses (JVMS Section 5.4.3.2)
         ClassFile declaringClass = targetClass;
         Optional<FieldInfo> fieldOpt = declaringClass.findField(fieldName, descriptor);
 

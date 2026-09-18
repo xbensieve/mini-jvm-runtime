@@ -48,6 +48,7 @@ public final class Interpreter {
     private final FieldResolver fieldResolver;
     private final Heap heap;
     private final ExceptionTableResolver exceptionTableResolver;
+    private InterpreterListener listener;
 
     public Interpreter() {
         this(new BytecodeDecoder(), new MethodResolver());
@@ -111,6 +112,14 @@ public final class Interpreter {
         return exceptionTableResolver;
     }
 
+    public Optional<InterpreterListener> listener() {
+        return Optional.ofNullable(listener);
+    }
+
+    public void setListener(InterpreterListener listener) {
+        this.listener = listener;
+    }
+
     /**
      * Executes explicit mark-and-sweep garbage collection over the interpreter's heap using the specified call stack.
      */
@@ -168,6 +177,10 @@ public final class Interpreter {
         // 2. Record instruction PC for error/diagnostic purposes
         frame.setLastInstructionPc(pc);
 
+        if (listener != null) {
+            listener.beforeInstruction(frame, ins, frameStack);
+        }
+
         // 3. Sequential PC advancement (establishes fall-through PC before execution)
         frame.advancePc(ins.length());
 
@@ -176,7 +189,14 @@ public final class Interpreter {
             executeInstruction(frame, ins, code.length, frameStack);
         } catch (Exception e) {
             frame.setStatus(FrameStatus.FAILED);
+            if (listener != null) {
+                listener.onFault(frame, ins, e, frameStack);
+            }
             throw e;
+        }
+
+        if (listener != null) {
+            listener.afterInstruction(frame, ins, frameStack);
         }
 
         return ins;
@@ -259,9 +279,9 @@ public final class Interpreter {
                                     ins.opcode().mnemonic(), cpIndex)
                     );
                 } else if (entry instanceof ConstantPoolEntry.FloatEntry) {
-                    throw new UnsupportedFeatureException("Float constants via ldc not supported in Phase 06");
+                    throw new UnsupportedFeatureException("Float constants via ldc not supported");
                 } else if (entry instanceof ConstantPoolEntry.ClassEntry) {
-                    throw new UnsupportedFeatureException("Class constants via ldc not supported in Phase 06");
+                    throw new UnsupportedFeatureException("Class constants via ldc not supported");
                 } else {
                     throw new ClassFormatException(
                             String.format("Invalid constant pool entry type %s for %s at index %d",
@@ -487,7 +507,10 @@ public final class Interpreter {
                     if (frameStack.isEmpty() || frameStack.current() != frame) {
                         throw new StackFaultException("FrameStack mismatch on return: active frame is not top of call stack");
                     }
-                    frameStack.pop();
+                    Frame popped = frameStack.pop();
+                    if (listener != null) {
+                        listener.onFramePopped(popped, frameStack);
+                    }
                 }
             }
             case IRETURN -> {
@@ -507,7 +530,10 @@ public final class Interpreter {
                     if (frameStack.isEmpty() || frameStack.current() != frame) {
                         throw new StackFaultException("FrameStack mismatch on ireturn: active frame is not top of call stack");
                     }
-                    frameStack.pop();
+                    Frame popped = frameStack.pop();
+                    if (listener != null) {
+                        listener.onFramePopped(popped, frameStack);
+                    }
                     if (!frameStack.isEmpty()) {
                         frameStack.current().operandStack().push(Value.ofInt(returnVal));
                     }
@@ -531,7 +557,10 @@ public final class Interpreter {
                     if (frameStack.isEmpty() || frameStack.current() != frame) {
                         throw new StackFaultException("FrameStack mismatch on areturn: active frame is not top of call stack");
                     }
-                    frameStack.pop();
+                    Frame popped = frameStack.pop();
+                    if (listener != null) {
+                        listener.onFramePopped(popped, frameStack);
+                    }
                     if (!frameStack.isEmpty()) {
                         frameStack.current().operandStack().push(returnVal);
                     }
@@ -943,13 +972,16 @@ public final class Interpreter {
                     callee.locals().set(i, args[i]);
                 }
                 frameStack.push(callee);
+                if (listener != null) {
+                    listener.onFramePushed(callee, frameStack);
+                }
             }
             case INVOKEVIRTUAL -> {
                 if (frameStack == null) {
                     throw new StackFaultException("Cannot execute invokevirtual without an active FrameStack");
                 }
                 int cpIndex = ins.constantPoolIndex();
-                // 1. Symbolic method resolution (JVMS §5.4.3.3)
+                // 1. Symbolic method resolution (JVMS Section 5.4.3.3)
                 MethodResolver.ResolvedMethod resolved = methodResolver.resolveMethod(
                         frame.constantPool(),
                         frame.classFile().orElse(null),
@@ -1003,7 +1035,7 @@ public final class Interpreter {
                     receiverClass = methodResolver.classRepository().getClass(objRef.runtimeClassName());
                 }
 
-                // 2. Runtime virtual method selection (JVMS §5.4.6 & §6.5)
+                // 2. Runtime virtual method selection (JVMS Section 5.4.6 & Section 6.5)
                 MethodSelector.SelectedMethod selected = methodSelector.selectMethod(resolved, receiverClass);
 
                 Frame callee = new Frame(selected.declaringClass(), selected.method());
@@ -1012,13 +1044,16 @@ public final class Interpreter {
                     callee.locals().set(i + 1, args[i]);
                 }
                 frameStack.push(callee);
+                if (listener != null) {
+                    listener.onFramePushed(callee, frameStack);
+                }
             }
             case INVOKESPECIAL -> {
                 if (frameStack == null) {
                     throw new StackFaultException("Cannot execute invokespecial without an active FrameStack");
                 }
                 int cpIndex = ins.constantPoolIndex();
-                // Symbolic method resolution (JVMS §5.4.3.3)
+                // Symbolic method resolution (JVMS Section 5.4.3.3)
                 MethodResolver.ResolvedMethod resolved = methodResolver.resolveMethod(
                         frame.constantPool(),
                         frame.classFile().orElse(null),
@@ -1064,13 +1099,16 @@ public final class Interpreter {
                     );
                 }
 
-                // invokespecial executes the resolved method directly without virtual selection (JVMS §6.5)
+                // invokespecial executes the resolved method directly without virtual selection (JVMS Section 6.5)
                 Frame callee = new Frame(resolved.classFile(), resolved.method());
                 callee.locals().set(0, receiver);
                 for (int i = 0; i < paramCount; i++) {
                     callee.locals().set(i + 1, args[i]);
                 }
                 frameStack.push(callee);
+                if (listener != null) {
+                    listener.onFramePushed(callee, frameStack);
+                }
             }
         }
     }
@@ -1132,7 +1170,10 @@ public final class Interpreter {
         }
 
         if (!frameStack.isEmpty() && frameStack.current() == throwingFrame) {
-            frameStack.pop();
+            Frame popped = frameStack.pop();
+            if (listener != null) {
+                listener.onFramePopped(popped, frameStack);
+            }
         }
 
         // 3. Unwind caller frames across frameStack
@@ -1156,7 +1197,10 @@ public final class Interpreter {
                 return;
             } else {
                 caller.setStatus(FrameStatus.FAILED);
-                frameStack.pop();
+                Frame popped = frameStack.pop();
+                if (listener != null) {
+                    listener.onFramePopped(popped, frameStack);
+                }
             }
         }
 

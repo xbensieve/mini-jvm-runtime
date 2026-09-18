@@ -270,7 +270,7 @@ public final class Heap {
     }
 
     /**
-     * Computes the specification-mandated default value for a given field descriptor (JVMS §2.3, §2.4).
+     * Computes the specification-mandated default value for a given field descriptor (JVMS Section 2.3, Section 2.4).
      */
     public static Value defaultValueForDescriptor(String descriptor) {
         Objects.requireNonNull(descriptor, "descriptor cannot be null");

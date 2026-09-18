@@ -57,7 +57,7 @@ class ClassFileReaderTest {
         dos.writeShort(0); // minor
         dos.writeShort(65); // major
         dos.writeShort(2); // cp_count = 2 (1 entry)
-        dos.writeByte(18); // tag 18 = CONSTANT_InvokeDynamic (unsupported in Phase 01)
+        dos.writeByte(18); // tag 18 = CONSTANT_InvokeDynamic (unsupported)
         dos.writeShort(0);
         dos.writeShort(0);
 

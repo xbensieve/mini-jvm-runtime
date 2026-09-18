@@ -19,7 +19,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Validates execution of all Phase 04 control flow and return opcodes:
+ * Validates execution of all control flow and return opcodes:
  * conditional jumps, binary comparisons, unconditional goto, iinc, return, and ireturn.
  */
 class ControlFlowInterpreterTest {

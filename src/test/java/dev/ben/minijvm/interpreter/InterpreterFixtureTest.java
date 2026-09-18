@@ -40,10 +40,10 @@ class InterpreterFixtureTest {
 
         byte[] code = method.code().orElseThrow().code();
 
-        // Step through Phase 03 instructions up until the return (0xB1) opcode
+        // Step through instructions up until the return (0xB1) opcode
         while (frame.pc() < code.length) {
             int nextByte = code[frame.pc()] & 0xFF;
-            if (nextByte == 0xB1) { // return (Phase 04 opcode)
+            if (nextByte == 0xB1) { // return opcode
                 break;
             }
             Instruction executed = interpreter.step(frame);

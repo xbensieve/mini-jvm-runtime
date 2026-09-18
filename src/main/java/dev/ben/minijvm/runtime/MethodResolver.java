@@ -16,7 +16,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Runtime component for method resolution (JVMS §5.4.3.3).
+ * Runtime component for method resolution (JVMS Section 5.4.3.3).
  * Resolves constant-pool Methodref entries to target ClassFile, MethodInfo, and MethodDescriptor,
  * enforcing opcode compatibility, CodeAttribute existence, and deterministic failure semantics.
  */
@@ -73,7 +73,7 @@ public final class MethodResolver {
         MethodDescriptor descriptor = MethodDescriptor.parse(descriptorStr);
         if (descriptor.hasCategory2Parameters() || descriptor.isCategory2Return()) {
             throw new UnsupportedFeatureException(
-                    "Category-2 (long/double) method invocation values are not supported in Phase 05: " + descriptorStr
+                    "Category-2 (long/double) method invocation values are not supported: " + descriptorStr
             );
         }
 

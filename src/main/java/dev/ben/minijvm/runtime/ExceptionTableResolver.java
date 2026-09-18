@@ -8,7 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Searches and resolves matching catch handlers in a method's exception table (JVMS §4.7.3 & §6.5).
+ * Searches and resolves matching catch handlers in a method's exception table (JVMS Section 4.7.3 and Section 6.5).
  * Evaluates active instruction PC ranges [startPc, endPc) and checks catch-type subtype compatibility.
  */
 public final class ExceptionTableResolver {
@@ -48,7 +48,7 @@ public final class ExceptionTableResolver {
 
         CodeAttribute code = codeOpt.get();
         for (ExceptionTableEntry entry : code.exceptionTable()) {
-            // JVMS §4.7.3: start_pc is inclusive, end_pc is exclusive
+            // JVMS Section 4.7.3: start_pc is inclusive, end_pc is exclusive
             if (instructionPc >= entry.startPc() && instructionPc < entry.endPc()) {
                 if (entry.catchType() == 0) {
                     // Catch-all handler (finally block)

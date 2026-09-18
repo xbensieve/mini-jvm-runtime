@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * End-to-end integration tests using real javac-compiled Java 21 bytecode fixtures
- * demonstrating true runtime-type-based virtual dispatch (JVMS §5.4.6 & §6.5).
+ * demonstrating true runtime-type-based virtual dispatch (JVMS Section 5.4.6 & Section 6.5).
  *
  * Verifies that symbolic resolution (Parent.value:()I) is decoupled from
  * runtime virtual method selection (Child.value:()I), and cross-checks guest VM

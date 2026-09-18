@@ -10,7 +10,7 @@ import java.util.Objects;
 /**
  * Represents an allocated guest array resident in the guest Heap.
  * Extends GuestObject to seamlessly integrate with the guest reference and handle model,
- * providing contiguous slot storage for primitive and reference arrays (JVMS §2.3, §2.4, §6.5).
+ * providing contiguous slot storage for primitive and reference arrays (JVMS Section 2.3, Section 2.4, Section 6.5).
  */
 public final class GuestArray extends GuestObject {
 

@@ -177,7 +177,7 @@ class ConstantPoolAccessTest {
     }
 
     @Test
-    @DisplayName("ldc referencing float throws UnsupportedFeatureException in Phase 05")
+    @DisplayName("ldc referencing float throws UnsupportedFeatureException")
     void testLdcFloatThrowsUnsupported() {
         List<ConstantPoolEntry> entries = new ArrayList<>();
         entries.add(new ConstantPoolEntry.UnusableEntry("slot 0"));

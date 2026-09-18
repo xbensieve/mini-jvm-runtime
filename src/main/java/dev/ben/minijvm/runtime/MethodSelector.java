@@ -9,7 +9,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Runtime component for JVM virtual method selection (JVMS §5.4.6 & §6.5).
+ * Runtime component for JVM virtual method selection (JVMS Section 5.4.6 & Section 6.5).
  * Given a symbolically resolved method and a receiver runtime class, selects the
  * actual method to execute by searching the receiver's class hierarchy from bottom to top.
  *
@@ -36,9 +36,9 @@ public final class MethodSelector {
     }
 
     /**
-     * Performs virtual method selection per JVMS §5.4.6.
+     * Performs virtual method selection per JVMS Section 5.4.6.
      *
-     * @param resolvedMethod The symbolically resolved target method (JVMS §5.4.3.3).
+     * @param resolvedMethod The symbolically resolved target method (JVMS Section 5.4.3.3).
      * @param receiverClass  The actual runtime class of the receiver object.
      * @return The selected method and its declaring ClassFile.
      * @throws LinkageException if receiverClass is not a subtype of the resolved declaring class,
@@ -61,7 +61,7 @@ public final class MethodSelector {
             );
         }
 
-        // 2. Method Selection (JVMS §5.4.6): search from receiverClass up the superclass hierarchy
+        // 2. Method Selection (JVMS Section 5.4.6): search from receiverClass up the superclass hierarchy
         ClassFile current = receiverClass;
         while (current != null) {
             Optional<MethodInfo> candidate = current.findMethod(methodName, descriptor);

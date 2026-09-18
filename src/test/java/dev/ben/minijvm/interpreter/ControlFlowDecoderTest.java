@@ -11,7 +11,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Validates decoding of all Phase 04 control flow and return instructions:
+ * Validates decoding of control flow and return instructions:
  * signed 16-bit branch offsets, iinc operands, truncated bytecodes, and lengths.
  */
 class ControlFlowDecoderTest {
@@ -19,9 +19,9 @@ class ControlFlowDecoderTest {
     private final BytecodeDecoder decoder = new BytecodeDecoder();
 
     @Test
-    @DisplayName("Opcode registry contains 85 concrete opcodes after Phase 07")
+    @DisplayName("Opcode registry contains 85 concrete opcodes")
     void testOpcodeCount() {
-        assertEquals(85, Opcode.values().length, "Opcode registry must contain exactly 85 opcodes (27 Phase 03 + 16 Phase 04 + 5 Phase 05 + 32 Phase 06 + 5 Phase 07)");
+        assertEquals(85, Opcode.values().length, "Opcode registry must contain exactly 85 concrete opcodes");
     }
 
     @ParameterizedTest(name = "Decode branch opcode {0} with signed positive offset")
@@ -129,7 +129,7 @@ class ControlFlowDecoderTest {
 
     @Test
     @DisplayName("Truncated branch and iinc bytecodes throw ClassFormatException")
-    void testTruncatedPhase04Bytecodes() {
+    void testTruncatedControlFlowBytecodes() {
         // goto requires 3 bytes, only 1 provided
         assertThrows(ClassFormatException.class, () -> decoder.decode(new byte[]{(byte) 0xA7}, 0));
         // goto requires 3 bytes, only 2 provided

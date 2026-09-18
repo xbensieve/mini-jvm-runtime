@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Validates Phase 04 execution semantics using genuine Java 21 bytecodes
+ * Validates control flow execution semantics using genuine Java 21 bytecodes
  * compiled by javac, featuring branching, loops, iinc, and method returns.
  */
 class ControlFlowFixtureTest {
@@ -176,7 +176,7 @@ class ControlFlowFixtureTest {
         callerFrame.locals().setInt(0, 5);
         frameStack.push(callerFrame);
 
-        // 2. Step caller up to invokestatic (in Phase 04, we simulate the invocation boundary)
+        // 2. Step caller up to invokestatic (simulate the invocation boundary)
         // Callee frame: square(5)
         Frame calleeFrame = new Frame(cf, squareMethod);
         calleeFrame.locals().setInt(0, 5);

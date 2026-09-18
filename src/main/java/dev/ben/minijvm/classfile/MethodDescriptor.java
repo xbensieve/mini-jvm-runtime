@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Deterministic parser and semantic model for JVM method descriptors (JVMS §4.3.3).
+ * Deterministic parser and semantic model for JVM method descriptors (JVMS Section 4.3.3).
  *
  * <pre>
  * MethodDescriptor:

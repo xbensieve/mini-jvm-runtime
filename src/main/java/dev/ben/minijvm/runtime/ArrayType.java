@@ -3,7 +3,7 @@ package dev.ben.minijvm.runtime;
 import dev.ben.minijvm.exception.ClassFormatException;
 
 /**
- * Enumeration of primitive array types used by the newarray instruction (JVMS §6.5).
+ * Enumeration of primitive array types used by the newarray instruction (JVMS Section 6.5).
  */
 public enum ArrayType {
     T_BOOLEAN(4, "[Z", "Z"),

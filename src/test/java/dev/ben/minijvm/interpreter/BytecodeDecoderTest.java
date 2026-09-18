@@ -14,7 +14,7 @@ class BytecodeDecoderTest {
     private final BytecodeDecoder decoder = new BytecodeDecoder();
 
     @Test
-    @DisplayName("Decode zero-operand Phase 03 opcodes")
+    @DisplayName("Decode zero-operand opcodes")
     void testZeroOperandOpcodes() {
         byte[] code = new byte[]{
                 0x00, // nop

@@ -59,15 +59,16 @@ public record Instruction(
     public String toString() {
         return switch (opcode) {
             case BIPUSH, SIPUSH -> String.format("%d: %s %d", pc, opcode.mnemonic(), operand);
-            case LDC, LDC_W -> String.format("%d: %s #%d", pc, opcode.mnemonic(), operand);
-            case INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC -> String.format("%d: %s #%d", pc, opcode.mnemonic(), operand);
+            case LDC, LDC_W, INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC,
+                 GETSTATIC, PUTSTATIC, GETFIELD, PUTFIELD, NEW, ANEWARRAY ->
+                    String.format("%d: %s #%d", pc, opcode.mnemonic(), operand);
             case ILOAD, ISTORE, ALOAD, ASTORE -> String.format("%d: %s %d", pc, opcode.mnemonic(), operand);
             case IINC -> String.format("%d: %s %d by %d", pc, opcode.mnemonic(), operand, secondaryOperand);
             case NEWARRAY -> String.format("%d: %s atype=%d", pc, opcode.mnemonic(), operand);
-            case ANEWARRAY -> String.format("%d: %s #%d", pc, opcode.mnemonic(), operand);
             case MULTIANEWARRAY -> String.format("%d: %s #%d dim=%d", pc, opcode.mnemonic(), operand, secondaryOperand);
             case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
                  IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE,
+                 IF_ACMPEQ, IF_ACMPNE, IFNULL, IFNONNULL,
                  GOTO -> String.format("%d: %s %+d -> %d", pc, opcode.mnemonic(), operand, pc + operand);
             default -> String.format("%d: %s", pc, opcode.mnemonic());
         };

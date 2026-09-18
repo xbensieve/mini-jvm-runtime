@@ -5,8 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Enumeration of JVM opcodes supported in Phase 03 through Phase 07
- * (85 concrete opcode values: 27 in Phase 03, 16 in Phase 04, 5 in Phase 05, 32 in Phase 06, 5 in Phase 07).
+ * Enumeration of the 85 concrete JVM opcodes supported by the runtime.
  */
 public enum Opcode {
     NOP(0x00, "nop", 1),

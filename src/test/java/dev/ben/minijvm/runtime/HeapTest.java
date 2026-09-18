@@ -150,7 +150,7 @@ class HeapTest {
     }
 
     @Test
-    @DisplayName("Default value for descriptors covers primitives and references according to JVMS §2.3/§2.4")
+    @DisplayName("Default value for descriptors covers primitives and references according to JVMS Section 2.3/Section 2.4")
     void testDefaultValueForDescriptor() {
         assertEquals(Value.ofInt(0), Heap.defaultValueForDescriptor("I"));
         assertEquals(Value.ofInt(0), Heap.defaultValueForDescriptor("Z"));

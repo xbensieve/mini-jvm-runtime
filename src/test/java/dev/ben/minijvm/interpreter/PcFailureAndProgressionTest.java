@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Validates program counter (PC) progression, faulting PC identification,
- * and abrupt execution invariants required by Phase 03 review conditions (R2, R3).
+ * and abrupt execution invariants.
  */
 class PcFailureAndProgressionTest {
 

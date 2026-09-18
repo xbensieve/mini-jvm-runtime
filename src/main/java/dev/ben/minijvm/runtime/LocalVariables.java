@@ -5,7 +5,9 @@ import dev.ben.minijvm.exception.StackFaultException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Fixed-capacity local variable table for a single method frame (JVMS 2.6.1).
@@ -125,6 +127,20 @@ public final class LocalVariables {
             }
         }
         return Collections.unmodifiableList(values);
+    }
+
+    /**
+     * Returns an unmodifiable map of all populated slots from index to value,
+     * maintaining deterministic slot index ordering.
+     */
+    public Map<Integer, Value> populatedSlots() {
+        Map<Integer, Value> populated = new LinkedHashMap<>();
+        for (int i = 0; i < capacity; i++) {
+            if (slots[i] instanceof ValueSlot vs) {
+                populated.put(i, vs.value());
+            }
+        }
+        return Collections.unmodifiableMap(populated);
     }
 
     public int getInt(int index) {
